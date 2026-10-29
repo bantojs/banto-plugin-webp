@@ -17,7 +17,7 @@ describe("banto-plugin-webp", () => {
   const NOTHUMB = { id: "33333333-3333-4333-8333-333333333333", storage_key: "shops/s/products/p/cccccccccccccccccccccccc.webp", thumb_key: null };
   const GIF = { id: "44444444-4444-4444-8444-444444444444", storage_key: "shops/s/products/p/dddddddddddddddddddddddd.gif", thumb_key: null };
 
-  function world(opts: { images?: unknown[]; quota?: boolean; products?: { id: string; images: unknown[] }[] } = {}) {
+  function world(opts: { images?: unknown[]; quota?: boolean; products?: { id: string; images: unknown[] }[]; broken?: string[] } = {}) {
     const puts: { url: string; parts: Record<string, { type: string; size: number }>; length: string | null }[] = [];
     const converts: number[] = [];
     const convert: Converter = async (bytes, { width }) => {
@@ -35,6 +35,7 @@ describe("banto-plugin-webp", () => {
       }
       if (method === "GET" && url.startsWith("https://shop.example/api/v1/products/")) {
         const id = decodeURIComponent(url.split("/").pop()!);
+        if (opts.broken?.includes(id)) return new Response("boom", { status: 500 });
         const p = opts.products?.find((x) => x.id === id);
         return Response.json({ id, images: p ? p.images : (opts.images ?? []) });
       }
@@ -133,9 +134,33 @@ describe("banto-plugin-webp", () => {
       { id: "p3", images: [NOTHUMB] },
     ];
     const w = world({ products });
-    expect(await sweep(env, w.deps, 2)).toEqual({ fixed: 2, quota: false });
+    expect(await sweep(env, w.deps, 2)).toEqual({ fixed: 2, quota: false, failed: 0 });
     expect(w.puts).toHaveLength(2);
     const q = world({ products, quota: true });
-    expect(await sweep(env, q.deps, 10)).toEqual({ fixed: 0, quota: true });
+    expect(await sweep(env, q.deps, 10)).toEqual({ fixed: 0, quota: true, failed: 0 });
+  });
+
+  it("見回り: 外への呼び出しの数（無料プランは 1 回 50）を超える前に止め、次の回に続きを直す", async () => {
+    const products = [
+      { id: "p2", images: [JPG, { ...JPG, id: "55555555-5555-4555-8555-555555555555" }] },
+      { id: "p3", images: [NOTHUMB] },
+    ];
+    const w = world({ products });
+    let calls = 0;
+    const deps = { ...w.deps, fetch: ((i: RequestInfo | URL, init?: RequestInit) => (calls++, w.deps.fetch(i, init))) as typeof fetch, convert: ((b, o) => (calls++, w.deps.convert(b, o))) as Converter };
+    // 一覧 1 + 詳細 1 + 1 枚 4 = 6 で 1 枚。残りでは 1 枚も直せないので止める
+    expect(await sweep(env, deps, 20, 7)).toEqual({ fixed: 1, quota: false, failed: 0 });
+    expect(calls).toBeLessThanOrEqual(7);
+    expect(w.puts).toHaveLength(1);
+  });
+
+  it("見回り: 1 つの商品で失敗しても、ログに残して次の商品に進む", async () => {
+    const products = [
+      { id: "bad", images: [JPG] },
+      { id: "p3", images: [NOTHUMB] },
+    ];
+    const w = world({ products, broken: ["bad"] });
+    expect(await sweep(env, w.deps, 20)).toEqual({ fixed: 1, quota: false, failed: 1 });
+    expect(w.puts.map((p) => p.url)).toEqual([`https://shop.example/api/v1/images/${NOTHUMB.id}/file`]);
   });
 });

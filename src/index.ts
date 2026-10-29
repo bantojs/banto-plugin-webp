@@ -5,6 +5,8 @@ interface Env extends PluginEnv {
   IMAGES: ImagesBinding;
   /** 定期処理が 1 回に直す枚数（既定 20） */
   SWEEP_BUDGET?: string;
+  /** 定期処理が 1 回に使う外への呼び出しの数（既定 45。Workers の無料プランの上限は 50、有料プランなら 900 などに上げられる） */
+  SWEEP_SUBREQUESTS?: string;
 }
 
 const streamOf = (bytes: Uint8Array) => new Response(bytes).body!;
@@ -25,7 +27,12 @@ function imagesConverter(images: ImagesBinding): Converter {
 export default {
   fetch: (req: Request, env: Env): Promise<Response> => handleRequest(req, env, { fetch, convert: imagesConverter(env.IMAGES) }),
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
-    const budget = Number(env.SWEEP_BUDGET ?? 20);
-    ctx.waitUntil(sweep(env, { fetch, convert: imagesConverter(env.IMAGES) }, Number.isFinite(budget) && budget > 0 ? budget : 20).then((r) => console.log(`webp sweep: fixed ${r.fixed}${r.quota ? " (quota exceeded)" : ""}`)));
+    const num = (v: string | undefined, d: number) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : d);
+    ctx.waitUntil(
+      sweep(env, { fetch, convert: imagesConverter(env.IMAGES) }, num(env.SWEEP_BUDGET, 20), num(env.SWEEP_SUBREQUESTS, 45)).then(
+        (r) => console.log(`webp sweep: fixed ${r.fixed}${r.failed ? `, failed ${r.failed}` : ""}${r.quota ? " (quota exceeded)" : ""}`),
+        (e: unknown) => console.error(`webp sweep: ${e instanceof Error ? e.message : String(e)}`),
+      ),
+    );
   },
 };
