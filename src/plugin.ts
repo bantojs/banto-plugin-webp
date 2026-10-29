@@ -184,7 +184,10 @@ export async function handleRequest(req: Request, env: PluginEnv, deps: PluginDe
 
   const body = await req.text();
   const now = deps.now ? deps.now() : Math.floor(Date.now() / 1000);
-  if (!(await verifySignature(env.BANTO_HOOK_SECRET, body, req.headers.get("X-Banto-Signature"), now))) {
+  // 画面に貼るときに混ざった前後の空白・改行は落とす（Banto のシークレットは 64 桁の hex）
+  if (!(await verifySignature(env.BANTO_HOOK_SECRET.trim(), body, req.headers.get("X-Banto-Signature"), now))) {
+    // 理由だけをログに出す（シークレットの値は出さない）。ほとんどは BANTO_HOOK_SECRET の貼り間違い
+    console.warn(`webp hooks: bad signature (header ${req.headers.has("X-Banto-Signature") ? "present" : "missing"}); copy the signing secret from Banto again into BANTO_HOOK_SECRET`);
     return new Response("bad signature", { status: 400 });
   }
   let envelope: Envelope;

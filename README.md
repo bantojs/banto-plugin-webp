@@ -82,6 +82,20 @@ Banto のデータベースに **0077_api_image_replace** が当たっていな�
 
 `BANTO_API_TOKEN` は商品を書き換えられるトークンです。**変数ではなくシークレット**に入れ、このプラグインのためだけに発行してください（漏れたら Banto の管理画面で取り消します）。
 
+## うまくいかないとき
+
+- **Banto のテスト送信（banto.ping）が届かない（このプラグインのログに何も出ない）**: Banto とこのプラグインを同じ Cloudflare アカウントに置くと、Cloudflare は Worker から Worker への fetch を error 1042 で断ります。両方の設定に `compatibility_flags = ["global_fetch_strictly_public"]` が要ります（このリポジトリの `wrangler.toml` には入っています）。Banto の側は、最新の `wrangler.jsonc` に更新してください。
+- **400 bad signature**（ログに `webp hooks: bad signature`）: `BANTO_HOOK_SECRET` を Banto の送信先の画面からコピーし直します。
+
+## ログ
+
+`wrangler.toml` で Cloudflare のログ（Workers Logs）を ON にしてあります。
+Cloudflare の画面 → Workers & Pages → banto-plugin-webp → **ログ** で、見回りの結果（`webp sweep: fixed 3`）や、差し替えに失敗したときの理由（hooks への 502 の本文）が見られます。
+
+- 失敗を原因ごとにまとめる **Issues** も ON です。**Traces** は切ってあります（遅い原因を探すときだけ `[observability.traces] enabled = true`）。
+- ログは自分の Cloudflare アカウントに数日だけ残ります。開発チームには届きません。
+- 要らなければ `wrangler.toml` の `[observability]` を `enabled = false` にします。ダッシュボードで切っても、次のデプロイで `wrangler.toml` のとおりに戻ります。
+
 ## 開発
 
 ```bash

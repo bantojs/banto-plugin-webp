@@ -71,6 +71,16 @@ describe("banto-plugin-webp", () => {
     expect(await verifySignature("whsec_test_vector", body, "v1=abc", 1760000000)).toBe(false);
   });
 
+  it("画面に貼ったシークレットの前後の空白・改行は落として確かめる。banto.ping は署名が合えば 200", async () => {
+    const body = JSON.stringify({ id: "ping-1", event: "banto.ping", created_at: "", shop_id: "s", attempt: 1, data: { message: "test" } });
+    const sig = signHookPayload("a".repeat(64), body, 1760000000);
+    const req = () => new Request("https://plugin.example/", { method: "POST", headers: { "X-Banto-Signature": sig }, body });
+    const deps = { fetch: async () => new Response(), convert: async () => new Uint8Array(), now: () => 1760000000, seen: new Set<string>() };
+    const pasted = { ...env, BANTO_HOOK_SECRET: ` ${"a".repeat(64)}\n` };
+    expect((await handleRequest(req(), pasted, deps)).status).toBe(200);
+    expect((await handleRequest(req(), { ...env, BANTO_HOOK_SECRET: "b".repeat(64) }, deps)).status).toBe(400);
+  });
+
   it("GET はマニフェスト（docs/hooks.md §4 の形）を返す。購読は product.updated だけ", async () => {
     const res = await handleRequest(new Request("https://plugin.example/"), env, world().deps);
     const m = (await res.json()) as { name: string; events: string[]; settings: unknown[] };
