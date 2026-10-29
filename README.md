@@ -82,6 +82,11 @@ Banto のデータベースに **0077_api_image_replace** が当たっていな�
 
 `BANTO_API_TOKEN` は商品を書き換えられるトークンです。**変数ではなくシークレット**に入れ、このプラグインのためだけに発行してください（漏れたら Banto の管理画面で取り消します）。
 
+## うまくいかないとき
+
+- **Banto のテスト送信（banto.ping）が届かない（このプラグインのログに何も出ない）**: Banto とこのプラグインを同じ Cloudflare アカウントに置くと、Cloudflare は Worker から Worker への fetch を error 1042 で断ります。両方の設定に `compatibility_flags = ["global_fetch_strictly_public"]` が要ります（このリポジトリの `wrangler.toml` には入っています）。Banto の側は、最新の `wrangler.jsonc` に更新してください。
+- **400 bad signature**（ログに `webp hooks: bad signature`）: `BANTO_HOOK_SECRET` を Banto の送信先の画面からコピーし直します。
+
 ## ログ
 
 `wrangler.toml` で Cloudflare のログ（Workers Logs）を ON にしてあります。

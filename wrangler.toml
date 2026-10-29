@@ -1,6 +1,8 @@
 name = "banto-plugin-webp"
 main = "src/index.ts"
 compatibility_date = "2025-10-01"
+# fetch を公開のインターネットと同じ道で出す。無いと、同じ Cloudflare アカウントの Banto の API への fetch が error 1042 で届かない
+compatibility_flags = ["global_fetch_strictly_public"]
 
 # 画面（変数とシークレット）で入れた値を、デプロイのたびに消さない
 keep_vars = true
