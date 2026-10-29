@@ -5,6 +5,11 @@ compatibility_date = "2025-10-01"
 # 画面（変数とシークレット）で入れた値を、デプロイのたびに消さない
 keep_vars = true
 
+# ログ（Workers Logs）。自分の Cloudflare アカウントに数日だけ残る（開発チームには届かない）。
+# ここに書かないと、ダッシュボードで ON にしてもデプロイのたびに OFF に戻る。要らなければ false にする
+[observability]
+enabled = true
+
 # 変換は Cloudflare Images（無料プランは 1 か月 5,000 回の変換。1 枚で本画像とサムネイルの 2 回）
 [images]
 binding = "IMAGES"
