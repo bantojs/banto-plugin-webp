@@ -114,6 +114,15 @@ describe("banto-plugin-webp", () => {
     expect(again.puts).toHaveLength(0);
   });
 
+  it("product.updated の 1 回で直すのは 3 枚まで（Banto の 10 秒と呼び出しの上限）。残りは次の知らせで", async () => {
+    const many = Array.from({ length: 5 }, (_, n) => ({ ...JPG, id: `6666666${n}-6666-4666-8666-666666666666` }));
+    const w = world({ images: many });
+    const res = await deliver(w, updated("d-many"));
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("ok: 3 image(s)");
+    expect(w.puts).toHaveLength(3);
+  });
+
   it("署名が違えば 400。同じ配信 ID は二度処理しない。枠が切れたら 200 で受け取って何も置かない", async () => {
     const w = world({ images: [JPG] });
     expect((await deliver(w, updated("d-3"), true)).status).toBe(400);
