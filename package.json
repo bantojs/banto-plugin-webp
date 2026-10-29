@@ -1,0 +1,30 @@
+{
+  "name": "banto-plugin-webp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Banto の商品画像を WebP とサムネイルに自動で変換する外部プラグイン（Cloudflare Workers + Images）",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "lint": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "cloudflare": {
+    "bindings": {
+      "BANTO_API_URL": { "description": "Banto の AI 用 API の URL。`https://<Banto の URL>/api/v1`" },
+      "BANTO_MEDIA_URL": { "description": "画像の置き場所の URL。Banto の `MEDIA_BASE_URL`（例 `https://media.example.com`）。設定していなければ `https://<Banto の URL>/media`" },
+      "BANTO_API_TOKEN": { "description": "Banto の管理画面 → AI 連携（トークン）で発行したトークン（`products:read` と `products:write`）。**誰にも見せないでください**" },
+      "BANTO_HOOK_SECRET": { "description": "Banto の管理画面 → 連携 → 送信先を追加したときに出る「署名シークレット」。先にこの Worker を置いて URL を決め、送信先を登録してから貼ります" }
+    }
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261006.1",
+    "@types/node": "^26.6.5",
+    "typescript": "^5.6.0",
+    "vitest": "^5.0.5",
+    "wrangler": "^4.153.0"
+  }
+}
