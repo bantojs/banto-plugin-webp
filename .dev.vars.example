@@ -1,0 +1,3 @@
+# Deploy ボタンの画面で入れる値（README の「置き方」）。ローカルで動かすときは .dev.vars に写して値を入れる
+BANTO_API_TOKEN=REPLACE_ME
+BANTO_HOOK_SECRET=REPLACE_ME

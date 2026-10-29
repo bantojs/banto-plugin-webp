@@ -1,0 +1,16 @@
+name = "banto-plugin-webp"
+main = "src/index.ts"
+compatibility_date = "2025-10-01"
+
+# 画面（変数とシークレット）で入れた値を、デプロイのたびに消さない
+keep_vars = true
+
+# 変換は Cloudflare Images（無料プランは 1 か月 5,000 回の変換。1 枚で本画像とサムネイルの 2 回）
+[images]
+binding = "IMAGES"
+
+# 前からの画像・枠が切れて止まった分を見回る（1 回に SWEEP_BUDGET 枚、既定 20）
+[triggers]
+crons = ["17 * * * *"]
+
+# BANTO_API_URL・BANTO_MEDIA_URL は変数、BANTO_API_TOKEN・BANTO_HOOK_SECRET はシークレットで入れる（README の「置き方」）
