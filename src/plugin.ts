@@ -150,29 +150,73 @@ export async function fixProduct(env: PluginEnv, deps: PluginDeps, productId: st
   return n;
 }
 
+/** 1 回の実行の外への呼び出し（fetch と変換）の数が上限に来た。Workers の無料プランは 1 回 50 まで */
+class SubrequestBudget extends Error {}
+
+/** 1 枚を直すのに使う外への呼び出しの数の上限（元の画像を取る・変換 2 回・差し替え。商品の詳細は別に 1） */
+const CALLS_PER_IMAGE = 4;
+
 /**
- * 全商品を見回って、残っているものを直す（定期処理）。1 回に budget 枚まで。枠が切れたら止める（次の回・次の月に続き）。
+ * hooks の 1 回で直す枚数。Banto は 10 秒で待つのをやめて再送するので、その中に収まる数にする。
+ * 差し替えるとまた product.updated が積まれる（届けている途中の知らせには重ならない、Banto の 0075）ので、
+ * 残りは次の知らせ（5 分ごと）と見回りで続きを直す
+ */
+export const HOOK_IMAGES = 3;
+
+/** 外への呼び出しを数える deps。上限を超えたら SubrequestBudget */
+function counting(deps: PluginDeps, calls: number): { deps: PluginDeps; used: () => number } {
+  let used = 0;
+  const take = () => {
+    if (++used > calls) throw new SubrequestBudget();
+  };
+  return {
+    deps: {
+      ...deps,
+      fetch: ((input: RequestInfo | URL, init?: RequestInit) => (take(), deps.fetch(input, init))) as typeof fetch,
+      convert: (bytes, opts) => (take(), deps.convert(bytes, opts)),
+    },
+    used: () => used,
+  };
+}
+
+/**
+ * 全商品を見回って、残っているものを直す（定期処理）。1 回に budget 枚まで、外への呼び出しは calls 回まで
+ * （Workers の無料プランは 1 回の実行で 50 まで。超えるとその場で落ちるので、手前で止める）。
+ * 枠が切れたら止める（次の回・次の月に続き）。1 つの商品で失敗しても、ログに残して次の商品に進む（同じ画像で毎回止まらない）。
  * 直したものは飛ばすので、続きの位置を覚えなくてよい
  */
-export async function sweep(env: PluginEnv, deps: PluginDeps, budget = 20): Promise<{ fixed: number; quota: boolean }> {
+export async function sweep(env: PluginEnv, deps: PluginDeps, budget = 20, calls = 45): Promise<{ fixed: number; quota: boolean; failed: number }> {
+  const { deps: counted, used } = counting(deps, calls);
   let fixed = 0;
-  for (let offset = 0; fixed < budget; offset += 50) {
-    const page = await api<{ items: { id: string; images?: ApiImage[] }[]; total: number }>(env, deps, `/products?limit=50&offset=${offset}`);
-    if (!page || page.items.length === 0) break;
-    for (const p of page.items) {
-      if (fixed >= budget) break;
-      // 一覧に画像があれば、直すものがある商品だけ詳細を引く
-      if (p.images && !p.images.some((i) => plan(i) !== "skip")) continue;
-      try {
-        fixed += await fixProduct(env, deps, p.id, budget - fixed);
-      } catch (e) {
-        if (e instanceof QuotaError) return { fixed, quota: true };
-        throw e;
+  let failed = 0;
+  try {
+    for (let offset = 0; fixed < budget; offset += 50) {
+      const page = await api<{ items: { id: string; images?: ApiImage[] }[]; total: number }>(env, counted, `/products?limit=50&offset=${offset}`);
+      if (!page || page.items.length === 0) break;
+      for (const p of page.items) {
+        if (fixed >= budget) break;
+        // 一覧に画像があれば、直すものがある商品だけ詳細を引く
+        const todo = p.images ? p.images.filter((i) => plan(i) !== "skip").length : 1;
+        if (todo === 0) continue;
+        // 残りの呼び出しで 1 枚も直せないなら、ここで止める（次の回に続き）
+        const left = Math.floor((calls - used() - 1) / CALLS_PER_IMAGE);
+        if (left < 1) return { fixed, quota: false, failed };
+        try {
+          fixed += await fixProduct(env, counted, p.id, Math.min(budget - fixed, left));
+        } catch (e) {
+          if (e instanceof QuotaError || e instanceof SubrequestBudget) throw e;
+          failed++;
+          console.error(`webp sweep: product ${p.id}: ${e instanceof Error ? e.message : String(e)}`);
+        }
       }
+      if (offset + 50 >= page.total) break;
     }
-    if (offset + 50 >= page.total) break;
+  } catch (e) {
+    if (e instanceof QuotaError) return { fixed, quota: true, failed };
+    if (e instanceof SubrequestBudget) return { fixed, quota: false, failed };
+    throw e;
   }
-  return { fixed, quota: false };
+  return { fixed, quota: false, failed };
 }
 
 export async function handleRequest(req: Request, env: PluginEnv, deps: PluginDeps): Promise<Response> {
@@ -203,7 +247,8 @@ export async function handleRequest(req: Request, env: PluginEnv, deps: PluginDe
   const productId = envelope.data["product_id"];
   if (typeof productId !== "string") return new Response("ignored");
   try {
-    const n = await fixProduct(env, deps, productId);
+    // 1 回に直すのは HOOK_IMAGES 枚まで（Banto の 10 秒・無料プランの呼び出しの上限に収める）。残りは次の知らせと見回りで
+    const n = await fixProduct(env, counting(deps, 1 + HOOK_IMAGES * CALLS_PER_IMAGE).deps, productId, HOOK_IMAGES);
     seen.add(envelope.id);
     if (seen.size > 5000) seen.clear();
     return new Response(`ok: ${n} image(s)`);
