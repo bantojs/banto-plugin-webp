@@ -12,6 +12,10 @@ keep_vars = true
 [observability]
 enabled = true
 
+# 失敗（例外・5xx・console.error）を原因ごとにまとめる。Traces は切ったまま（すべての fetch を記録するので、要るときだけ）
+[observability.issues]
+enabled = true
+
 # 変換は Cloudflare Images（無料プランは 1 か月 5,000 回の変換。1 枚で本画像とサムネイルの 2 回）
 [images]
 binding = "IMAGES"

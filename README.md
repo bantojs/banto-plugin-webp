@@ -92,6 +92,7 @@ Banto のデータベースに **0077_api_image_replace** が当たっていな�
 `wrangler.toml` で Cloudflare のログ（Workers Logs）を ON にしてあります。
 Cloudflare の画面 → Workers & Pages → banto-plugin-webp → **ログ** で、見回りの結果（`webp sweep: fixed 3`）や、差し替えに失敗したときの理由（hooks への 502 の本文）が見られます。
 
+- 失敗を原因ごとにまとめる **Issues** も ON です。**Traces** は切ってあります（遅い原因を探すときだけ `[observability.traces] enabled = true`）。
 - ログは自分の Cloudflare アカウントに数日だけ残ります。開発チームには届きません。
 - 要らなければ `wrangler.toml` の `[observability]` を `enabled = false` にします。ダッシュボードで切っても、次のデプロイで `wrangler.toml` のとおりに戻ります。
 
