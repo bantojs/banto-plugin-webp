@@ -10,6 +10,8 @@ interface Env extends PluginEnv {
 }
 
 const streamOf = (bytes: Uint8Array) => new Response(bytes).body!;
+/** 組み込みの fetch をそのまま渡すと、deps.fetch(...) の形で呼ばれたときに Illegal invocation になるので包む */
+const fetchFn: typeof fetch = (input, init) => fetch(input, init);
 
 function imagesConverter(images: ImagesBinding): Converter {
   return async (bytes, { width, quality }) => {
@@ -25,11 +27,11 @@ function imagesConverter(images: ImagesBinding): Converter {
 }
 
 export default {
-  fetch: (req: Request, env: Env): Promise<Response> => handleRequest(req, env, { fetch, convert: imagesConverter(env.IMAGES) }),
+  fetch: (req: Request, env: Env): Promise<Response> => handleRequest(req, env, { fetch: fetchFn, convert: imagesConverter(env.IMAGES) }),
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     const num = (v: string | undefined, d: number) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : d);
     ctx.waitUntil(
-      sweep(env, { fetch, convert: imagesConverter(env.IMAGES) }, num(env.SWEEP_BUDGET, 20), num(env.SWEEP_SUBREQUESTS, 45)).then(
+      sweep(env, { fetch: fetchFn, convert: imagesConverter(env.IMAGES) }, num(env.SWEEP_BUDGET, 20), num(env.SWEEP_SUBREQUESTS, 45)).then(
         (r) => console.log(`webp sweep: fixed ${r.fixed}${r.failed ? `, failed ${r.failed}` : ""}${r.quota ? " (quota exceeded)" : ""}`),
         (e: unknown) => console.error(`webp sweep: ${e instanceof Error ? e.message : String(e)}`),
       ),

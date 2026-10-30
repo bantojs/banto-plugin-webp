@@ -114,6 +114,22 @@ describe("banto-plugin-webp", () => {
     expect(again.puts).toHaveLength(0);
   });
 
+  it("fetch は this なしで呼ぶ（Workers の組み込みの fetch は deps.fetch(...) の形で呼ぶと Illegal invocation）", async () => {
+    const products = [{ id: "p2", images: [JPG] }];
+    const w = world({ products, images: [JPG] });
+    const inner = w.deps.fetch;
+    const strict = function (this: unknown, input: RequestInfo | URL, init?: RequestInit) {
+      if (this !== undefined && this !== globalThis) throw new TypeError("Illegal invocation");
+      return inner(input, init);
+    } as typeof fetch;
+    const deps = { ...w.deps, fetch: strict };
+    expect((await sweep(env, deps, 20)).fixed).toBe(1);
+    env.BANTO_HOOK_SECRET = "whsec_test";
+    const body = JSON.stringify(updated("d-this"));
+    const res = await handleRequest(new Request("https://plugin.example/", { method: "POST", headers: { "X-Banto-Signature": signHookPayload("whsec_test", body, NOW) }, body }), env, { ...deps, seen: new Set<string>() });
+    expect(res.status).toBe(200);
+  });
+
   it("product.updated の 1 回で直すのは 3 枚まで（Banto の 10 秒と呼び出しの上限）。残りは次の知らせで", async () => {
     const many = Array.from({ length: 5 }, (_, n) => ({ ...JPG, id: `6666666${n}-6666-4666-8666-666666666666` }));
     const w = world({ images: many });
