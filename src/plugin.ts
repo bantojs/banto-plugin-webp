@@ -107,7 +107,9 @@ export function plan(image: ApiImage): "skip" | "thumb" | "both" {
 
 /** Banto の API で 404 のときは null（商品が消えた）。それ以外の失敗は投げる（hooks なら 5xx で再送してもらう） */
 async function api<T>(env: PluginEnv, deps: PluginDeps, path: string, init: RequestInit = {}): Promise<T | null> {
-  const res = await deps.fetch(`${env.BANTO_API_URL.replace(/\/+$/, "")}${path}`, { ...init, headers: { ...(init.headers as Record<string, string> | undefined), Authorization: `Bearer ${env.BANTO_API_TOKEN}` } });
+  // fetch は deps のメソッドとして呼ばない（Workers の fetch は this が違うと Illegal invocation になる）
+  const doFetch = deps.fetch;
+  const res = await doFetch(`${env.BANTO_API_URL.replace(/\/+$/, "")}${path}`, { ...init, headers: { ...(init.headers as Record<string, string> | undefined), Authorization: `Bearer ${env.BANTO_API_TOKEN}` } });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`banto ${init.method ?? "GET"} ${path}: ${res.status} ${(await res.text()).slice(0, 200)}`);
   return (await res.json()) as T;
@@ -117,7 +119,8 @@ async function api<T>(env: PluginEnv, deps: PluginDeps, path: string, init: Requ
 async function fixImage(env: PluginEnv, deps: PluginDeps, image: ApiImage): Promise<boolean> {
   const todo = plan(image);
   if (todo === "skip") return false;
-  const src = await deps.fetch(`${env.BANTO_MEDIA_URL.replace(/\/+$/, "")}/${image.storage_key}`);
+  const doFetch = deps.fetch;
+  const src = await doFetch(`${env.BANTO_MEDIA_URL.replace(/\/+$/, "")}/${image.storage_key}`);
   if (!src.ok) throw new Error(`media ${image.storage_key}: ${src.status}`);
   const original = new Uint8Array(await src.arrayBuffer());
   const main = todo === "thumb" && original.byteLength <= MAX_MAIN ? original : await deps.convert(original, { width: MAIN_WIDTH, quality: 82 });
@@ -165,6 +168,7 @@ export const HOOK_IMAGES = 3;
 
 /** 外への呼び出しを数える deps。上限を超えたら SubrequestBudget */
 function counting(deps: PluginDeps, calls: number): { deps: PluginDeps; used: () => number } {
+  const doFetch = deps.fetch;
   let used = 0;
   const take = () => {
     if (++used > calls) throw new SubrequestBudget();
@@ -172,7 +176,7 @@ function counting(deps: PluginDeps, calls: number): { deps: PluginDeps; used: ()
   return {
     deps: {
       ...deps,
-      fetch: ((input: RequestInfo | URL, init?: RequestInit) => (take(), deps.fetch(input, init))) as typeof fetch,
+      fetch: ((input: RequestInfo | URL, init?: RequestInit) => (take(), doFetch(input, init))) as typeof fetch,
       convert: (bytes, opts) => (take(), deps.convert(bytes, opts)),
     },
     used: () => used,
