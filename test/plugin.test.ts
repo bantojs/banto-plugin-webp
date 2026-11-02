@@ -226,6 +226,21 @@ describe("banto-plugin-webp", () => {
     expect(w.puts).toHaveLength(1);
   });
 
+  it("product.updated で失敗したら、理由を本文とログの両方に出して 502（Banto に再送してもらう）", async () => {
+    const w = world({ images: [JPG], broken: ["p"] });
+    const logged: string[] = [];
+    const orig = console.error;
+    console.error = (...a: unknown[]) => void logged.push(a.map(String).join(" "));
+    try {
+      const res = await deliver(w, updated("d-err"));
+      expect(res.status).toBe(502);
+      expect(await res.text()).toMatch(/banto GET \/products\/p: 500/);
+    } finally {
+      console.error = orig;
+    }
+    expect(logged.join("\n")).toMatch(/webp hooks: product p: banto GET \/products\/p: 500/);
+  });
+
   it("見回り: 1 つの商品で失敗しても、ログに残して次の商品に進む", async () => {
     const products = [
       { id: "bad", images: [JPG] },

@@ -346,8 +346,11 @@ export async function handleRequest(req: Request, env: PluginEnv, deps: PluginDe
   } catch (e) {
     // 枠が切れた: 再送してもらっても同じなので 200 で受け取り、定期処理が次の月に直す
     if (e instanceof QuotaError) return new Response("quota exceeded; the scheduled sweep will retry");
-    // それ以外（Banto・置き場所の一時的な失敗）は 5xx で再送してもらう
-    return new Response(e instanceof Error ? e.message : String(e), { status: 502 });
+    // それ以外（Banto・置き場所の一時的な失敗）は 5xx で再送してもらう。理由はログにも出す
+    // （Banto の配信の履歴は本文の先頭しか残さないので、Workers Logs で全文を読めるように）
+    const message = e instanceof Error ? e.message : String(e);
+    console.error(`webp hooks: product ${productId}: ${message}`);
+    return new Response(message, { status: 502 });
   }
 }
 
