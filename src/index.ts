@@ -14,9 +14,10 @@ const streamOf = (bytes: Uint8Array) => new Response(bytes).body!;
 const fetchFn: typeof fetch = (input, init) => fetch(input, init);
 
 function imagesConverter(images: ImagesBinding): Converter {
-  return async (bytes, { width, quality }) => {
+  return async (bytes, { width, height, quality }) => {
     try {
-      const out = await images.input(streamOf(bytes)).transform({ width, fit: "scale-down" }).output({ format: "image/webp", quality });
+      // 横幅 width・高さ height の枠に収める（縦横の比はそのまま・大きくはしない）。Banto の段の決め方と同じ
+      const out = await images.input(streamOf(bytes)).transform({ width, height, fit: "scale-down" }).output({ format: "image/webp", quality });
       return new Uint8Array(await new Response(out.image()).arrayBuffer());
     } catch (e) {
       // 9422: その月の変換の枠を使い切った（無料プランは 1 か月 5,000 回。超えてもお金はかからず、この失敗になる）
