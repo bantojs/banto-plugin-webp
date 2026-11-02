@@ -1,6 +1,6 @@
 {
   "name": "banto-plugin-webp",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "description": "Banto の商品画像を WebP とサムネイルに自動で変換する外部プラグイン（Cloudflare Workers + Images）",
   "license": "MIT",

@@ -20,6 +20,11 @@ enabled = true
 [images]
 binding = "IMAGES"
 
+# ブランチのプレビュー（Workers Builds が PR ごとに作る。wrangler preview）にも同じ binding を付ける。
+# 無いとプレビューのビルドが「previews ブロックが無い」で止まる。見回りの Cron はプレビューでは動かない（Cloudflare の制限）
+[previews.images]
+binding = "IMAGES"
+
 # 前からの画像・枠が切れて止まった分を見回る（1 回に SWEEP_BUDGET 枚、既定 20）
 [triggers]
 crons = ["17 * * * *"]
